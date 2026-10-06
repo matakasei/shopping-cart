@@ -3,7 +3,7 @@ import { ShoppingCart, Calculator, Save } from 'lucide-react';
 import CartItem from './CartItem';
 import './CartList.css';
 
-const CartList = ({ items, onUpdateQuantity, onRemove, onSaveCart }) => {
+const CartList = ({ items, onUpdateQuantity, onUpdatePrice, onRemove, onSaveCart }) => {
   const [cartName, setCartName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
@@ -59,6 +59,7 @@ const CartList = ({ items, onUpdateQuantity, onRemove, onSaveCart }) => {
             key={item.id} 
             item={item} 
             onUpdateQuantity={onUpdateQuantity}
+            onUpdatePrice={onUpdatePrice}
             onRemove={onRemove}
           />
         ))}

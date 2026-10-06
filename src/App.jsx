@@ -3,7 +3,8 @@ import './App.css';
 import AddItemForm from './components/AddItemForm';
 import CartList from './components/CartList';
 import SavedCartsList from './components/SavedCartsList';
-import { ShoppingCart, Archive } from 'lucide-react';
+import CompareList from './components/CompareList';
+import { ShoppingCart, Archive, SplitSquareHorizontal } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 function App() {
@@ -18,7 +19,7 @@ function App() {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [activeTab, setActiveTab] = useState('cart'); // 'cart' or 'saved'
+  const [activeTab, setActiveTab] = useState('cart'); // 'cart', 'compare', or 'saved'
 
   // ステートが変更されるたびにLocalStorageに保存
   useEffect(() => {
@@ -38,6 +39,12 @@ function App() {
   const handleUpdateQuantity = (id, newQuantity) => {
     setCartItems(prev => 
       prev.map(item => item.id === id ? { ...item, quantity: newQuantity } : item)
+    );
+  };
+
+  const handleUpdatePrice = (id, newPrice) => {
+    setCartItems(prev => 
+      prev.map(item => item.id === id ? { ...item, price: Number(newPrice) } : item)
     );
   };
 
@@ -113,6 +120,13 @@ function App() {
               <ShoppingCart size={18} /> 現在のカート ({cartItems.length})
             </button>
             <button 
+              className={`btn ${activeTab === 'compare' ? 'btn-primary' : ''}`}
+              onClick={() => setActiveTab('compare')}
+              style={{ flex: 1, backgroundColor: activeTab !== 'compare' ? 'rgba(0,0,0,0.05)' : undefined, color: activeTab !== 'compare' ? 'var(--color-text-muted)' : undefined }}
+            >
+              <SplitSquareHorizontal size={18} /> 比較表
+            </button>
+            <button 
               className={`btn ${activeTab === 'saved' ? 'btn-primary' : ''}`}
               onClick={() => setActiveTab('saved')}
               style={{ flex: 1, backgroundColor: activeTab !== 'saved' ? 'rgba(0,0,0,0.05)' : undefined, color: activeTab !== 'saved' ? 'var(--color-text-muted)' : undefined }}
@@ -134,10 +148,13 @@ function App() {
               <CartList 
                 items={cartItems} 
                 onUpdateQuantity={handleUpdateQuantity}
+                onUpdatePrice={handleUpdatePrice}
                 onRemove={handleRemoveFromCart}
                 onSaveCart={handleSaveCart}
               />
             </>
+          ) : activeTab === 'compare' ? (
+            <CompareList items={cartItems} onRemove={handleRemoveFromCart} />
           ) : (
             <SavedCartsList 
               savedCarts={savedCarts}

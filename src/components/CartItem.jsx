@@ -1,9 +1,28 @@
-import React from 'react';
-import { ExternalLink, Trash2, BookmarkPlus, Minus, Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { ExternalLink, Trash2, BookmarkPlus, Minus, Plus, Edit2, Check } from 'lucide-react';
 import './CartItem.css';
 
-const CartItem = ({ item, onUpdateQuantity, onRemove, onBookmark, isBookmarkView }) => {
+const CartItem = ({ item, onUpdateQuantity, onUpdatePrice, onRemove, onBookmark, isBookmarkView }) => {
   const { title, price, imageUrl, url, siteInfo, quantity } = item;
+  
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [editPriceValue, setEditPriceValue] = useState(price);
+
+  const handlePriceSubmit = () => {
+    if (onUpdatePrice && !isNaN(editPriceValue) && editPriceValue >= 0) {
+      onUpdatePrice(item.id, editPriceValue);
+    }
+    setIsEditingPrice(false);
+  };
+
+  const handlePriceKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handlePriceSubmit();
+    } else if (e.key === 'Escape') {
+      setEditPriceValue(price);
+      setIsEditingPrice(false);
+    }
+  };
 
   const formattedPrice = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(price);
   
@@ -28,7 +47,36 @@ const CartItem = ({ item, onUpdateQuantity, onRemove, onBookmark, isBookmarkView
         </div>
         
         <h3 className="cart-item-title" title={title}>{title}</h3>
-        <div className="cart-item-price">{formattedPrice}</div>
+        
+        <div className="cart-item-price-container">
+          {isEditingPrice ? (
+            <div className="price-edit-mode">
+              <span className="currency-symbol">¥</span>
+              <input 
+                type="number" 
+                className="price-input"
+                value={editPriceValue}
+                onChange={(e) => setEditPriceValue(e.target.value)}
+                onKeyDown={handlePriceKeyDown}
+                onBlur={handlePriceSubmit}
+                autoFocus
+                min="0"
+              />
+              <button className="btn-icon small success" onMouseDown={(e) => e.preventDefault()} onClick={handlePriceSubmit}>
+                <Check size={14} />
+              </button>
+            </div>
+          ) : (
+            <div className="cart-item-price">
+              {formattedPrice}
+              {!isBookmarkView && onUpdatePrice && (
+                <button className="btn-icon tiny edit-price-btn" onClick={() => setIsEditingPrice(true)} title="価格を編集">
+                  <Edit2 size={12} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
         
         <div className="cart-item-actions">
           {!isBookmarkView && (

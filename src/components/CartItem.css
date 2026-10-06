@@ -120,3 +120,80 @@
   display: flex;
   gap: 0.5rem;
 }
+
+.cart-item-price-container {
+  margin-top: auto;
+}
+
+.cart-item-price {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.edit-price-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: var(--color-text-muted);
+}
+
+.cart-item:hover .edit-price-btn {
+  opacity: 1;
+}
+
+.edit-price-btn:hover {
+  color: var(--color-primary);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.price-edit-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.25rem 0.5rem;
+}
+
+.currency-symbol {
+  font-weight: 700;
+  color: var(--color-text-muted);
+}
+
+.price-input {
+  width: 80px;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  outline: none;
+}
+
+/* Chrome, Safari, Edge, Opera */
+.price-input::-webkit-outer-spin-button,
+.price-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+/* Firefox */
+.price-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.btn-icon.tiny {
+  padding: 0.2rem;
+  width: 24px;
+  height: 24px;
+}
+
+.btn-icon.success {
+  color: #10b981;
+}
+.btn-icon.success:hover {
+  background: rgba(16, 185, 129, 0.1);
+}

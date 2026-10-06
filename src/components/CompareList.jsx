@@ -25,68 +25,81 @@ const CompareList = ({ items, onRemove }) => {
         </h2>
         
         <div className="compare-table-wrapper">
-          <table className="compare-table">
+          <table className="compare-specs-table">
             <thead>
               <tr>
-                <th>画像</th>
-                <th>サイト</th>
-                <th>商品名</th>
-                <th>価格</th>
-                <th>差額 (最安値比)</th>
-                <th>操作</th>
+                <th className="spec-label-col"></th>
+                {items.map(item => (
+                  <th key={item.id} className="spec-product-col">
+                    <div className="spec-image-container">
+                      {item.imageUrl ? (
+                        <img src={item.imageUrl} alt={item.title} />
+                      ) : (
+                        <div className="no-image-small">{item.siteInfo.logoText}</div>
+                      )}
+                    </div>
+                    <div className="spec-title" title={item.title}>
+                      {item.title}
+                    </div>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {items.map(item => {
-                const isLowest = item.price === lowestPrice;
-                const diffFromLowest = item.price - lowestPrice;
-                const formattedPrice = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(item.price);
-                const formattedDiff = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(diffFromLowest);
-
-                return (
-                  <tr key={item.id} className={isLowest ? 'highlight-lowest' : ''}>
-                    <td className="col-image">
-                      <div className="compare-image-container">
-                        {item.imageUrl ? (
-                          <img src={item.imageUrl} alt={item.title} />
-                        ) : (
-                          <div className="no-image-small">{item.siteInfo.logoText}</div>
-                        )}
-                      </div>
+              <tr>
+                <td className="spec-label">価格</td>
+                {items.map(item => {
+                  const isLowest = item.price === lowestPrice;
+                  const formattedPrice = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(item.price);
+                  return (
+                    <td key={item.id} className={`spec-value spec-price ${isLowest ? 'highlight-lowest' : ''}`}>
+                      {formattedPrice}
                     </td>
-                    <td className="col-site">
-                      <span className="site-badge" style={{ backgroundColor: item.siteInfo.color }}>
-                        {item.siteInfo.siteName}
-                      </span>
-                    </td>
-                    <td className="col-title">
-                      <div className="title-wrapper" title={item.title}>
-                        {item.title}
-                      </div>
-                    </td>
-                    <td className="col-price">
-                      <div className="price-value">{formattedPrice}</div>
-                    </td>
-                    <td className="col-diff">
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="spec-label">最安値比</td>
+                {items.map(item => {
+                  const isLowest = item.price === lowestPrice;
+                  const diffFromLowest = item.price - lowestPrice;
+                  const formattedDiff = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(diffFromLowest);
+                  return (
+                    <td key={item.id} className={`spec-value ${isLowest ? 'highlight-lowest' : ''}`}>
                       {isLowest ? (
                         <span className="badge-lowest">最安値 ✨</span>
                       ) : (
                         <span className="price-diff">+{formattedDiff}</span>
                       )}
                     </td>
-                    <td className="col-actions">
-                      <div className="action-buttons-center">
-                        <a href={item.url} target="_blank" rel="noopener noreferrer" className="btn-icon primary" title="商品ページを開く">
-                          <ExternalLink size={16} />
-                        </a>
-                        <button className="btn-icon danger" onClick={() => onRemove(item.id)} title="カートから削除">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                  );
+                })}
+              </tr>
+              <tr>
+                <td className="spec-label">サイト</td>
+                {items.map(item => (
+                  <td key={item.id} className="spec-value">
+                    <span className="site-badge" style={{ backgroundColor: item.siteInfo.color }}>
+                      {item.siteInfo.siteName}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="spec-label">操作</td>
+                {items.map(item => (
+                  <td key={item.id} className="spec-value">
+                    <div className="action-buttons-center" style={{ justifyContent: 'center' }}>
+                      <a href={item.url} target="_blank" rel="noopener noreferrer" className="btn-icon primary" title="商品ページを開く">
+                        <ExternalLink size={16} />
+                      </a>
+                      <button className="btn-icon danger" onClick={() => onRemove(item.id)} title="比較から削除">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>

@@ -37,7 +37,9 @@ export const getItemBreakdown = (item) => {
  * カート全体の集計とサイト別小計を計算する
  */
 export const getCartSummary = (items) => {
-  const totals = items.reduce(
+  const includedItems = items.filter((item) => item.included !== false);
+
+  const totals = includedItems.reduce(
     (acc, item) => {
       const b = getItemBreakdown(item);
       acc.subtotal += b.subtotal;
@@ -59,7 +61,7 @@ export const getCartSummary = (items) => {
   );
 
   const siteMap = new Map();
-  items.forEach((item) => {
+  includedItems.forEach((item) => {
     const siteName = item.siteInfo?.siteName || 'その他';
     const color = item.siteInfo?.color || 'var(--color-other)';
     const b = getItemBreakdown(item);
@@ -92,6 +94,7 @@ export const getCartSummary = (items) => {
 
   return {
     ...totals,
+    includedCount: includedItems.length,
     siteSubtotals,
   };
 };

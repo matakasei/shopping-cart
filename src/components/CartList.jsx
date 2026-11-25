@@ -14,17 +14,19 @@ const CartList = ({
   onSaveCart,
   onLoadSample,
   onShareCart,
+  onNotify,
 }) => {
   const [cartName, setCartName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
 
   const summary = getCartSummary(items);
+  const pausedCount = items.length - summary.includedCount;
 
   const handleSave = (e) => {
     e.preventDefault();
     if (!cartName.trim()) {
-      alert('カートの名前を入力してください');
+      onNotify?.('カートの名前を入力してください', 'error');
       return;
     }
     onSaveCart(cartName, items, summary.effectiveTotal);
@@ -136,7 +138,9 @@ const CartList = ({
           {summary.points > 0 && (
             <span className="summary-points">- ポイント {summary.points.toLocaleString()}pt</span>
           )}
-          <span className="summary-qty">（合計 {summary.totalQuantity}点）</span>
+          <span className="summary-qty">
+            （対象 {summary.totalQuantity}点{pausedCount > 0 ? ` / 保留 ${pausedCount}件` : ''}）
+          </span>
         </div>
 
         {summary.siteSubtotals.length > 0 && (

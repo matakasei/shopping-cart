@@ -43,6 +43,7 @@ export const encodeShareData = async ({ items, budget }) => {
       u: item.url || '',
       img: item.imageUrl || '',
       sn: item.url ? undefined : item.siteInfo?.siteName,
+      inc: item.included === false ? 0 : undefined,
     })),
   };
 
@@ -103,6 +104,7 @@ export const decodeShareData = async (encoded) => {
       points: Math.max(0, Number(entry.pt) || 0),
       imageUrl: typeof entry.img === 'string' ? entry.img : '',
       siteInfo,
+      included: entry.inc !== 0,
       addedAt: now - idx,
     };
   });

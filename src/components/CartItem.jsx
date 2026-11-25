@@ -5,10 +5,11 @@ import './CartItem.css';
 
 const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) => {
   const { title, imageUrl, url, siteInfo } = item;
+  const isIncluded = item.included !== false;
   const breakdown = getItemBreakdown(item);
   const { price, quantity, shipping, points, effectiveTotal } = breakdown;
 
-  const [editingField, setEditingField] = useState(null); // 'price' | 'shipping' | 'points' | null
+  const [editingField, setEditingField] = useState(null); // 'title' | 'price' | 'shipping' | 'points' | null
   const [editValue, setEditValue] = useState('');
 
   const startEditing = (field, currentVal) => {
@@ -19,6 +20,16 @@ const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) 
 
   const commitEdit = () => {
     if (!editingField || !onUpdateItem) return;
+
+    if (editingField === 'title') {
+      const trimmed = editValue.trim();
+      if (trimmed) {
+        onUpdateItem(item.id, { title: trimmed });
+      }
+      setEditingField(null);
+      return;
+    }
+
     const numeric = parseInt(editValue, 10);
     if (!Number.isNaN(numeric) && numeric >= 0) {
       onUpdateItem(item.id, { [editingField]: numeric });
@@ -37,7 +48,17 @@ const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) 
   const showEffectiveSubtotal = quantity > 1 || shipping > 0 || points > 0;
 
   return (
-    <div className="glass-panel cart-item">
+    <div className={`glass-panel cart-item ${!isIncluded ? 'is-paused' : ''}`}>
+      {!isBookmarkView && onUpdateItem && (
+        <label className="cart-item-include-toggle" title={isIncluded ? '見積もりに含める（クリックで保留）' : '保留中（クリックで見積もりに戻す）'}>
+          <input
+            type="checkbox"
+            checked={isIncluded}
+            onChange={() => onUpdateItem(item.id, { included: !isIncluded })}
+          />
+        </label>
+      )}
+
       <div className="cart-item-image">
         {imageUrl ? (
           <img src={imageUrl} alt={title} />
@@ -48,9 +69,12 @@ const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) 
 
       <div className="cart-item-content">
         <div className="cart-item-header">
-          <span className="site-badge" style={{ backgroundColor: siteInfo.color }}>
-            {siteInfo.siteName}
-          </span>
+          <div className="cart-item-badges">
+            <span className="site-badge" style={{ backgroundColor: siteInfo.color }}>
+              {siteInfo.siteName}
+            </span>
+            {!isIncluded && <span className="paused-badge">保留中</span>}
+          </div>
           {url && (
             <a href={url} target="_blank" rel="noopener noreferrer" className="external-link">
               商品ページ <ExternalLink size={14} />
@@ -58,7 +82,40 @@ const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) 
           )}
         </div>
 
-        <h3 className="cart-item-title" title={title}>{title}</h3>
+        {editingField === 'title' ? (
+          <div className="title-edit-mode">
+            <input
+              type="text"
+              className="title-input"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleEditKeyDown}
+              onBlur={commitEdit}
+              autoFocus
+            />
+            <button
+              className="btn-icon small success"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={commitEdit}
+              aria-label="商品名を確定"
+            >
+              <Check size={14} />
+            </button>
+          </div>
+        ) : (
+          <div className="cart-item-title-row">
+            <h3 className="cart-item-title" title={title}>{title}</h3>
+            {!isBookmarkView && onUpdateItem && (
+              <button
+                className="btn-icon tiny edit-inline-btn"
+                onClick={() => startEditing('title', title)}
+                title="商品名を編集"
+              >
+                <Edit2 size={12} />
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="cart-item-price-container">
           {editingField === 'price' ? (
@@ -89,7 +146,7 @@ const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) 
                 {formatJPY(price)}
                 {!isBookmarkView && onUpdateItem && (
                   <button
-                    className="btn-icon tiny edit-price-btn"
+                    className="btn-icon tiny edit-inline-btn"
                     onClick={() => startEditing('price', price)}
                     title="本体価格を編集"
                   >

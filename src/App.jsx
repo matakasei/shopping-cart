@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import AddItemForm from './components/AddItemForm';
 import CartList from './components/CartList';
 import SavedCartsList from './components/SavedCartsList';
 import CompareList from './components/CompareList';
+import ToastContainer from './components/ToastContainer';
 import { ShoppingCart, Archive, SplitSquareHorizontal, Share2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { createSampleCartItems } from './utils/cartUtils';
@@ -35,7 +36,19 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('cart');
   const [pendingShareData, setPendingShareData] = useState(null);
-  const [shareNotice, setShareNotice] = useState('');
+  const [toasts, setToasts] = useState([]);
+
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const showToast = useCallback((message, type = 'info') => {
+    const id = uuidv4();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3200);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(cartItems));
@@ -73,15 +86,16 @@ function App() {
         if (existingItems.length === 0) {
           setCartItems(decoded.items);
           if (decoded.budget) setBudget(decoded.budget);
-          setShareNotice(`共有された見積もりリスト（${decoded.items.length}点）を読み込みました。`);
+          showToast(`共有された見積もりリスト（${decoded.items.length}点）を読み込みました。`, 'success');
         } else {
           setPendingShareData(decoded);
         }
       })
       .catch((err) => {
         console.error('Failed to decode shared cart:', err);
+        showToast('共有URLの読み込みに失敗しました', 'error');
       });
-  }, []);
+  }, [showToast]);
 
   const handleAcceptPendingShare = () => {
     if (!pendingShareData) return;
@@ -89,7 +103,7 @@ function App() {
     if (pendingShareData.budget) {
       setBudget(pendingShareData.budget);
     }
-    setShareNotice(`共有された見積もりリスト（${pendingShareData.items.length}点）を読み込みました。`);
+    showToast(`共有された見積もりリスト（${pendingShareData.items.length}点）を読み込みました。`, 'success');
     setPendingShareData(null);
     setActiveTab('cart');
   };
@@ -97,6 +111,7 @@ function App() {
   const handleAddToCart = (item) => {
     setCartItems((prev) => [item, ...prev]);
     setActiveTab('cart');
+    showToast(`「${item.title}」をカートに追加しました`, 'success');
   };
 
   const handleUpdateItem = (id, patch) => {
@@ -122,6 +137,7 @@ function App() {
       setBudget(35000);
     }
     setActiveTab('cart');
+    showToast('サンプル商品を読み込みました', 'info');
   };
 
   const handleShareCart = async () => {
@@ -130,13 +146,14 @@ function App() {
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${encoded}`;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(shareUrl);
+        showToast('共有URLをクリップボードにコピーしました', 'success');
         return true;
       }
       window.prompt('以下のURLをコピーして共有してください', shareUrl);
       return true;
     } catch (err) {
       console.error('Failed to share cart:', err);
-      alert('共有URLの作成に失敗しました');
+      showToast('共有URLの作成に失敗しました', 'error');
       return false;
     }
   };
@@ -151,13 +168,14 @@ function App() {
     };
 
     setSavedCarts((prev) => [newSavedCart, ...prev]);
-    alert(`「${name}」を保存しました`);
+    showToast(`「${name}」を保存しました`, 'success');
     setActiveTab('saved');
   };
 
   const handleRemoveSavedCart = (id) => {
     if (window.confirm('この保存済みカートを削除してもよろしいですか？')) {
       setSavedCarts((prev) => prev.filter((cart) => cart.id !== id));
+      showToast('保存済みカートを削除しました', 'info');
     }
   };
 
@@ -175,7 +193,7 @@ function App() {
     }));
 
     setCartItems(restoredItems);
-    alert(`「${cart.name}」をカートに復元しました`);
+    showToast(`「${cart.name}」をカートに復元しました`, 'success');
     setActiveTab('cart');
   };
 
@@ -205,18 +223,9 @@ function App() {
         </div>
       )}
 
-      {shareNotice && (
-        <div className="glass-panel share-notice fade-in">
-          <span>{shareNotice}</span>
-          <button type="button" className="btn-text-dismiss" onClick={() => setShareNotice('')}>
-            閉じる
-          </button>
-        </div>
-      )}
-
       <main className="main-grid">
         <div className="sidebar">
-          <AddItemForm onAdd={handleAddToCart} />
+          <AddItemForm onAdd={handleAddToCart} onNotify={showToast} />
         </div>
 
         <div className="main-content">
@@ -275,6 +284,7 @@ function App() {
                 onSaveCart={handleSaveCart}
                 onLoadSample={handleLoadSample}
                 onShareCart={handleShareCart}
+                onNotify={showToast}
               />
             </>
           ) : activeTab === 'compare' ? (
@@ -288,6 +298,7 @@ function App() {
           )}
         </div>
       </main>
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
 }

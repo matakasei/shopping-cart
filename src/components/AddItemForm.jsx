@@ -11,7 +11,7 @@ const DEFAULT_MANUAL_SITE = {
   domain: '',
 };
 
-const AddItemForm = ({ onAdd }) => {
+const AddItemForm = ({ onAdd, onNotify }) => {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
@@ -79,7 +79,7 @@ const AddItemForm = ({ onAdd }) => {
     e.preventDefault();
 
     if (!title.trim() || price === '') {
-      alert('商品名と価格を入力してください');
+      onNotify?.('商品名と価格を入力してください', 'error');
       return;
     }
 

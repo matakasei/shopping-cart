@@ -118,6 +118,12 @@
   font-weight: 600;
 }
 
+.summary-calc-note {
+  text-align: right;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
 .site-subtotals {
   margin-top: 0.5rem;
   padding-top: 1rem;

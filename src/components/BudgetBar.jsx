@@ -97,6 +97,7 @@ const BudgetBar = ({ budget, onUpdateBudget, currentTotal }) => {
             className="btn-icon tiny"
             onClick={startEdit}
             title="目標予算を編集"
+            aria-label="目標予算を編集"
           >
             <Edit2 size={13} />
           </button>
@@ -105,6 +106,7 @@ const BudgetBar = ({ budget, onUpdateBudget, currentTotal }) => {
             className="btn-icon tiny"
             onClick={() => onUpdateBudget(null)}
             title="目標予算を解除"
+            aria-label="目標予算を解除"
           >
             <X size={13} />
           </button>
@@ -122,7 +124,15 @@ const BudgetBar = ({ budget, onUpdateBudget, currentTotal }) => {
         </div>
       </div>
 
-      <div className="budget-progress-track" role="progressbar" aria-valuenow={rawPercentage} aria-valuemin={0} aria-valuemax={100}>
+      <div
+        className="budget-progress-track"
+        role="progressbar"
+        aria-label="目標予算の消化率"
+        aria-valuenow={Math.min(100, Math.max(0, rawPercentage))}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={`予算消化率 ${rawPercentage}%${isOver ? '（予算オーバー）' : ''}`}
+      >
         <div className={`budget-progress-fill ${statusClass}`} style={{ width: `${percentage}%` }} />
       </div>
 

@@ -225,6 +225,9 @@ const CartList = ({
             （対象 {summary.totalQuantity}点{pausedCount > 0 ? ` / 保留 ${pausedCount}件` : ''}）
           </span>
         </div>
+        <p className="summary-calc-note">
+          ※ 送料・ポイントは各商品行ごとの設定値として合計に反映されます（数量は本体価格のみに掛かります）。
+        </p>
 
         {summary.siteSubtotals.length > 0 && (
           <div className="site-subtotals">

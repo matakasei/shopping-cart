@@ -1,16 +1,54 @@
-# React + Vite
+# Multi-Cart Estimator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+複数のECサイト（Amazon・楽天・Yahoo!ショッピング等）の商品をまとめて管理し、**送料・ポイント還元・数量**を含めた実質価格で見積もり・比較できる静的Webアプリです。
 
-Currently, two official plugins are available:
+## 主な機能
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- **現在のカート（見積もり計算）**
+  - 本体価格・数量・送料・ポイント還元・商品名をカート上でインライン編集
+  - 「買う / 保留」チェックで予算シミュレーション
+  - 目標予算の設定と消化率プログレスバー（「あと◯◯円」「予算オーバー」表示）
+  - ECサイト別の小計・送料内訳の自動集計
+  - サイト別絞り込み・並び替え（追加順 / 実質価格順 / サイト別）
+- **独立した比較表**
+  - カートとは別に管理できる比較専用テーブル
+  - 実質合計（送料・ポイント考慮）と最安値比をハイライト表示
+  - カート ⇔ 比較表の相互コピー・追加に対応
+- **保存済みリスト ＆ URL共有**
+  - 目標予算を含めて `localStorage` にリストを保存・復元
+  - `deflate-raw` で圧縮した `?s=...` URLパラメータによるリスト共有
 
-## React Compiler
+## 金額計算の仕様
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+各商品行について、以下の式で**実質小計**を計算します。
 
-## Expanding the ESLint configuration
+```text
+実質小計 = (本体価格 × 数量) + 送料 - ポイント還元
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **数量**は本体価格のみに掛かります。
+- **送料・ポイント還元**は、まとめ買い時の送料やキャンペーン上限を考慮しやすいよう、各商品行ごとの設定値として一度だけ加算・減算されます。
+
+## 開発・ビルド方法
+
+### 動作要件
+
+- **Node.js**: `20.19` 以上 または `22.12` 以上（Vite 8 の要件）
+- **npm**: Node.js 同梱版
+
+### セットアップとコマンド
+
+```bash
+npm ci
+npm run dev      # 開発サーバー起動
+npm run lint     # ESLint 実行
+npm test         # Vitest ユニットテスト実行
+npm run build    # 本番ビルド（dist/ に出力）
+```
+
+## 設計上の工夫・既知の制約
+
+- **外部URL取得（Microlink API）**: 商品URLを入力すると、タイトルや画像取得のため入力URLが外部サービス（`api.microlink.io`）へ送信されます。通信タイムアウト（6秒）やHTTPエラー時、またはAmazon・楽天などOGP取得がブロックされるサイトでも、そのまま手動入力フォームへ進んで登録できます。
+- **URLサニタイズとドメイン判定**: 外部リンク・画像URLは `http:` / `https:` のみ許可し、サイト判定は完全一致または正規サブドメイン判定で行います。
+- **保存・共有データの検証**: `localStorage` と共有URLの復元時には、型・数値範囲・文字列長・件数上限（商品100件 / 保存リスト50件 / 共有パラメータ16KB）を検証し、不正データや容量超過時にもアプリが停止しない設計としています。
+- **クライアント完結型**: バックエンドを持たない静的サイト（GitHub Pages）のため、データはブラウザの `localStorage` に保存されます。別端末への引き継ぎには「リストを共有」機能をご利用ください。

@@ -8,6 +8,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { formatJPY, getItemBreakdown } from '../utils/cartUtils';
+import { sanitizeHttpUrl } from '../utils/urlParser';
 import './CompareList.css';
 
 const CompareList = ({ items, onRemove, onClear, onAddToCart, onLoadSample }) => {
@@ -183,39 +184,45 @@ const CompareList = ({ items, onRemove, onClear, onAddToCart, onLoadSample }) =>
               </tr>
               <tr>
                 <td className="spec-label">操作</td>
-                {targetItems.map(({ item }) => (
-                  <td key={item.id} className="spec-value">
-                    <div className="action-buttons-center" style={{ justifyContent: 'center' }}>
-                      {onAddToCart && (
+                {targetItems.map(({ item }) => {
+                  const safeUrl = sanitizeHttpUrl(item.url);
+                  return (
+                    <td key={item.id} className="spec-value">
+                      <div className="action-buttons-center" style={{ justifyContent: 'center' }}>
+                        {onAddToCart && (
+                          <button
+                            className="btn-icon primary"
+                            onClick={() => onAddToCart(item)}
+                            title="この商品をカートに追加"
+                            aria-label={`${item.title}をカートに追加`}
+                          >
+                            <ShoppingCart size={16} />
+                          </button>
+                        )}
+                        {safeUrl && (
+                          <a
+                            href={safeUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-icon primary"
+                            title="商品ページを開く"
+                            aria-label={`${item.title}の商品ページを開く`}
+                          >
+                            <ExternalLink size={16} />
+                          </a>
+                        )}
                         <button
-                          className="btn-icon primary"
-                          onClick={() => onAddToCart(item)}
-                          title="この商品をカートに追加"
+                          className="btn-icon danger"
+                          onClick={() => onRemove(item.id)}
+                          title="比較から削除"
+                          aria-label={`${item.title}を比較から削除`}
                         >
-                          <ShoppingCart size={16} />
+                          <Trash2 size={16} />
                         </button>
-                      )}
-                      {item.url && (
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-icon primary"
-                          title="商品ページを開く"
-                        >
-                          <ExternalLink size={16} />
-                        </a>
-                      )}
-                      <button
-                        className="btn-icon danger"
-                        onClick={() => onRemove(item.id)}
-                        title="比較から削除"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                ))}
+                      </div>
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>

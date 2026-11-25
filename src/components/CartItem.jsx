@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { ExternalLink, Trash2, SplitSquareHorizontal, Minus, Plus, Edit2, Check, Truck, Coins } from 'lucide-react';
 import { formatJPY, getItemBreakdown } from '../utils/cartUtils';
+import { sanitizeHttpUrl } from '../utils/urlParser';
 import './CartItem.css';
 
 const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView }) => {
   const { title, imageUrl, url, siteInfo } = item;
+  const safeUrl = sanitizeHttpUrl(url);
+  const safeImageUrl = sanitizeHttpUrl(imageUrl);
   const isIncluded = item.included !== false;
   const breakdown = getItemBreakdown(item);
   const { price, quantity, shipping, points, effectiveTotal } = breakdown;
@@ -60,8 +63,8 @@ const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView
       )}
 
       <div className="cart-item-image">
-        {imageUrl ? (
-          <img src={imageUrl} alt={title} />
+        {safeImageUrl ? (
+          <img src={safeImageUrl} alt={title} />
         ) : (
           <div className="no-image">{siteInfo.logoText}</div>
         )}
@@ -75,8 +78,8 @@ const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView
             </span>
             {!isIncluded && <span className="paused-badge">保留中</span>}
           </div>
-          {url && (
-            <a href={url} target="_blank" rel="noopener noreferrer" className="external-link">
+          {safeUrl && (
+            <a href={safeUrl} target="_blank" rel="noopener noreferrer" className="external-link">
               商品ページ <ExternalLink size={14} />
             </a>
           )}
@@ -110,6 +113,7 @@ const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView
                 className="btn-icon tiny edit-inline-btn"
                 onClick={() => startEditing('title', title)}
                 title="商品名を編集"
+                aria-label="商品名を編集"
               >
                 <Edit2 size={12} />
               </button>
@@ -243,6 +247,7 @@ const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView
                 className="btn-icon small"
                 onClick={() => onUpdateItem(item.id, { quantity: Math.max(1, quantity - 1) })}
                 disabled={quantity <= 1}
+                aria-label="数量を減らす"
               >
                 <Minus size={14} />
               </button>
@@ -250,6 +255,7 @@ const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView
               <button
                 className="btn-icon small"
                 onClick={() => onUpdateItem(item.id, { quantity: quantity + 1 })}
+                aria-label="数量を増やす"
               >
                 <Plus size={14} />
               </button>
@@ -262,6 +268,7 @@ const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView
                 className="btn-icon"
                 onClick={() => onAddToCompare(item)}
                 title="比較表にコピー"
+                aria-label="比較表にコピー"
               >
                 <SplitSquareHorizontal size={18} />
               </button>
@@ -270,6 +277,7 @@ const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView
               className="btn-icon danger"
               onClick={() => onRemove(item.id)}
               title="削除"
+              aria-label="商品を削除"
             >
               <Trash2 size={18} />
             </button>

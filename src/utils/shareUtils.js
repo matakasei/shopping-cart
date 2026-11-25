@@ -1,5 +1,10 @@
-import { v4 as uuidv4 } from 'uuid';
-import { parseUrl } from './urlParser';
+import { validateCartItems, validateBudget, LIMITS } from './storageUtils';
+import { sanitizeHttpUrl } from './urlParser';
+
+export const SHARE_LIMITS = {
+  MAX_ENCODED_LENGTH: 16384,
+  MAX_DECOMPRESSED_BYTES: 65536,
+};
 
 const bytesToBase64Url = (bytes) => {
   let binary = '';
@@ -10,6 +15,9 @@ const bytesToBase64Url = (bytes) => {
 };
 
 const base64UrlToBytes = (str) => {
+  if (typeof str !== 'string' || !/^[A-Za-z0-9\-_]+$/.test(str)) {
+    throw new Error('Invalid base64url characters.');
+  }
   const padded = str.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((str.length + 3) % 4);
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
@@ -19,29 +27,53 @@ const base64UrlToBytes = (str) => {
   return bytes;
 };
 
-const runStreamTransform = async (bytes, stream) => {
+const runStreamTransform = async (bytes, stream, maxOutputBytes = SHARE_LIMITS.MAX_DECOMPRESSED_BYTES) => {
   const writer = stream.writable.getWriter();
   writer.write(bytes);
   writer.close();
-  const buffer = await new Response(stream.readable).arrayBuffer();
-  return new Uint8Array(buffer);
+
+  const reader = stream.readable.getReader();
+  const chunks = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maxOutputBytes) {
+      await reader.cancel();
+      throw new Error('Decompressed share payload exceeds size limit.');
+    }
+    chunks.push(value);
+  }
+
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return merged;
 };
 
 /**
  * カート内容と目標予算を圧縮してURLパラメータ用文字列にエンコードする
  */
 export const encodeShareData = async ({ items, budget }) => {
+  const validItems = validateCartItems(items);
+  const validBudget = validateBudget(budget);
+
   const payload = {
     v: 1,
-    b: budget != null && budget > 0 ? Number(budget) : null,
-    i: items.map((item) => ({
+    b: validBudget,
+    i: validItems.map((item) => ({
       t: item.title,
-      p: Number(item.price) || 0,
-      q: Math.max(1, Number(item.quantity) || 1),
-      s: Math.max(0, Number(item.shipping) || 0),
-      pt: Math.max(0, Number(item.points) || 0),
-      u: item.url || '',
-      img: item.imageUrl || '',
+      p: item.price,
+      q: item.quantity,
+      s: item.shipping,
+      pt: item.points,
+      u: sanitizeHttpUrl(item.url),
+      img: sanitizeHttpUrl(item.imageUrl),
       sn: item.url ? undefined : item.siteInfo?.siteName,
       inc: item.included === false ? 0 : undefined,
     })),
@@ -49,19 +81,31 @@ export const encodeShareData = async ({ items, budget }) => {
 
   const jsonBytes = new TextEncoder().encode(JSON.stringify(payload));
 
+  let encoded;
   if (typeof CompressionStream !== 'undefined') {
     const compressed = await runStreamTransform(jsonBytes, new CompressionStream('deflate-raw'));
-    return 'z' + bytesToBase64Url(compressed);
+    encoded = 'z' + bytesToBase64Url(compressed);
+  } else {
+    encoded = 'j' + bytesToBase64Url(jsonBytes);
   }
 
-  return 'j' + bytesToBase64Url(jsonBytes);
+  if (encoded.length > SHARE_LIMITS.MAX_ENCODED_LENGTH) {
+    throw new Error('Share URL exceeds maximum supported length.');
+  }
+
+  return encoded;
 };
 
 /**
- * URLパラメータからカート内容と目標予算を復元する
+ * URLパラメータからカート内容と目標予算を厳密に検証して復元する
  */
 export const decodeShareData = async (encoded) => {
-  if (!encoded || encoded.length < 2) return null;
+  if (typeof encoded !== 'string' || encoded.length < 2) {
+    throw new Error('Invalid share parameter.');
+  }
+  if (encoded.length > SHARE_LIMITS.MAX_ENCODED_LENGTH) {
+    throw new Error('Share parameter exceeds maximum length.');
+  }
 
   const prefix = encoded[0];
   const body = encoded.slice(1);
@@ -72,44 +116,43 @@ export const decodeShareData = async (encoded) => {
     if (typeof DecompressionStream === 'undefined') {
       throw new Error('DecompressionStream is not supported in this browser.');
     }
-    jsonBytes = await runStreamTransform(bytes, new DecompressionStream('deflate-raw'));
-  } else if (prefix !== 'j') {
+    jsonBytes = await runStreamTransform(
+      bytes,
+      new DecompressionStream('deflate-raw'),
+      SHARE_LIMITS.MAX_DECOMPRESSED_BYTES
+    );
+  } else if (prefix === 'j') {
+    if (bytes.byteLength > SHARE_LIMITS.MAX_DECOMPRESSED_BYTES) {
+      throw new Error('Share payload exceeds size limit.');
+    }
+  } else {
     throw new Error('Unknown share format.');
   }
 
   const parsed = JSON.parse(new TextDecoder().decode(jsonBytes));
-  if (!parsed || !Array.isArray(parsed.i)) {
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.i)) {
     throw new Error('Invalid share payload.');
   }
 
   const now = Date.now();
-  const items = parsed.i.map((entry, idx) => {
-    const url = typeof entry.u === 'string' ? entry.u : '';
-    const siteInfo = url
-      ? parseUrl(url)
-      : {
-          siteName: entry.sn || '手動入力',
-          color: 'var(--color-other)',
-          logoText: 'MEMO',
-          domain: '',
-        };
-
+  const rawItems = parsed.i.slice(0, LIMITS.MAX_ITEMS).map((entry, idx) => {
+    if (!entry || typeof entry !== 'object') return null;
     return {
-      id: uuidv4(),
-      url,
-      title: String(entry.t || '名称未設定の商品'),
-      price: Math.max(0, Number(entry.p) || 0),
-      quantity: Math.max(1, Number(entry.q) || 1),
-      shipping: Math.max(0, Number(entry.s) || 0),
-      points: Math.max(0, Number(entry.pt) || 0),
-      imageUrl: typeof entry.img === 'string' ? entry.img : '',
-      siteInfo,
+      title: entry.t,
+      price: entry.p,
+      quantity: entry.q,
+      shipping: entry.s,
+      points: entry.pt,
+      url: entry.u,
+      imageUrl: entry.img,
+      siteInfo: entry.sn ? { siteName: entry.sn } : undefined,
       included: entry.inc !== 0,
       addedAt: now - idx,
     };
   });
 
-  const budget = parsed.b != null && Number(parsed.b) > 0 ? Number(parsed.b) : null;
+  const items = validateCartItems(rawItems);
+  const budget = validateBudget(parsed.b);
 
   return { items, budget };
 };

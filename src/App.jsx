@@ -8,48 +8,15 @@ import ToastContainer from './components/ToastContainer';
 import ConfirmDialog from './components/ConfirmDialog';
 import { ShoppingCart, Archive, SplitSquareHorizontal, Share2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { createSampleCartItems, createSampleCompareItems } from './utils/cartUtils';
 import { encodeShareData, decodeShareData } from './utils/shareUtils';
-
-const STORAGE_KEYS = {
-  items: 'multi-cart-items',
-  compare: 'multi-cart-compare-items',
-  saved: 'multi-cart-saved-lists',
-  budget: 'multi-cart-budget',
-};
-
-const safeReadStorage = (key, fallback) => {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(fallback) && !Array.isArray(parsed) ? fallback : parsed;
-  } catch {
-    return fallback;
-  }
-};
+import { useEstimatorState, STORAGE_KEYS } from './hooks/useEstimatorState';
+import { safeReadStorage, validateCartItems } from './utils/storageUtils';
 
 function App() {
-  const [cartItems, setCartItems] = useState(() => safeReadStorage(STORAGE_KEYS.items, []));
-  const [compareItems, setCompareItems] = useState(() => safeReadStorage(STORAGE_KEYS.compare, []));
-  const [savedCarts, setSavedCarts] = useState(() => safeReadStorage(STORAGE_KEYS.saved, []));
-
-  const [budget, setBudget] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.budget);
-      if (!saved) return null;
-      const parsed = Number(saved);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-    } catch {
-      return null;
-    }
-  });
-
   const [activeTab, setActiveTab] = useState('cart');
   const [pendingShareData, setPendingShareData] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null);
-  const [mobileFormOpen, setMobileFormOpen] = useState(() => cartItems.length === 0);
 
   const dismissToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -63,25 +30,28 @@ function App() {
     }, 3200);
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(cartItems));
-  }, [cartItems]);
+  const {
+    cartItems,
+    compareItems,
+    savedCarts,
+    budget,
+    setBudget,
+    addCartItem,
+    updateCartItem,
+    removeCartItem,
+    clearCart,
+    loadSampleCart,
+    addCompareItem,
+    removeCompareItem,
+    clearCompare,
+    loadSampleCompare,
+    saveCurrentCart,
+    removeSavedCart,
+    restoreSavedCart,
+    replaceCartFromShare,
+  } = useEstimatorState(showToast);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.compare, JSON.stringify(compareItems));
-  }, [compareItems]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.saved, JSON.stringify(savedCarts));
-  }, [savedCarts]);
-
-  useEffect(() => {
-    if (budget && budget > 0) {
-      localStorage.setItem(STORAGE_KEYS.budget, String(budget));
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.budget);
-    }
-  }, [budget]);
+  const [mobileFormOpen, setMobileFormOpen] = useState(() => cartItems.length === 0);
 
   // URLパラメータ (?s=...) から共有データを読み込む
   useEffect(() => {
@@ -96,11 +66,10 @@ function App() {
       .then((decoded) => {
         if (!decoded || decoded.items.length === 0) return;
 
-        const existingItems = safeReadStorage(STORAGE_KEYS.items, []);
+        const existingItems = safeReadStorage(STORAGE_KEYS.items, validateCartItems, []);
 
         if (existingItems.length === 0) {
-          setCartItems(decoded.items);
-          if (decoded.budget) setBudget(decoded.budget);
+          replaceCartFromShare(decoded.items, decoded.budget);
           showToast(`共有された見積もりリスト（${decoded.items.length}点）を読み込みました。`, 'success');
         } else {
           setPendingShareData(decoded);
@@ -110,27 +79,24 @@ function App() {
         console.error('Failed to decode shared cart:', err);
         showToast('共有URLの読み込みに失敗しました', 'error');
       });
-  }, [showToast]);
+  }, [replaceCartFromShare, showToast]);
 
   const handleAcceptPendingShare = () => {
     if (!pendingShareData) return;
-    setCartItems(pendingShareData.items);
-    if (pendingShareData.budget) {
-      setBudget(pendingShareData.budget);
-    }
+    replaceCartFromShare(pendingShareData.items, pendingShareData.budget);
     showToast(`共有された見積もりリスト（${pendingShareData.items.length}点）を読み込みました。`, 'success');
     setPendingShareData(null);
     setActiveTab('cart');
   };
 
   const handleAddToCart = (item) => {
-    setCartItems((prev) => [item, ...prev]);
+    if (!addCartItem(item)) return;
     setActiveTab('cart');
     showToast(`「${item.title}」をカートに追加しました`, 'success');
   };
 
   const handleAddToCompare = (item) => {
-    setCompareItems((prev) => [item, ...prev]);
+    if (!addCompareItem(item)) return;
     setActiveTab('compare');
     showToast(`「${item.title}」を比較表に追加しました`, 'success');
   };
@@ -142,7 +108,7 @@ function App() {
       included: true,
       addedAt: Date.now(),
     };
-    setCompareItems((prev) => [copied, ...prev]);
+    if (!addCompareItem(copied)) return;
     showToast(`「${item.title}」を比較表にコピーしました`, 'info');
   };
 
@@ -153,42 +119,8 @@ function App() {
       included: true,
       addedAt: Date.now(),
     };
-    setCartItems((prev) => [copied, ...prev]);
+    if (!addCartItem(copied)) return;
     showToast(`「${item.title}」をカートに追加しました`, 'success');
-  };
-
-  const handleRemoveFromCompare = (id) => {
-    setCompareItems((prev) => prev.filter((item) => item.id !== id));
-  };
-
-  const handleClearCompare = () => {
-    setConfirmDialog({
-      title: '比較表をすべてクリア',
-      message: '比較表の商品をすべて削除しますか？',
-      confirmLabel: 'すべて削除',
-      danger: true,
-      onConfirm: () => {
-        setCompareItems([]);
-        setConfirmDialog(null);
-        showToast('比較表を空にしました', 'info');
-      },
-    });
-  };
-
-  const handleLoadCompareSample = () => {
-    setCompareItems(createSampleCompareItems());
-    setActiveTab('compare');
-    showToast('比較サンプル商品を読み込みました', 'info');
-  };
-
-  const handleUpdateItem = (id, patch) => {
-    setCartItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...patch } : item))
-    );
-  };
-
-  const handleRemoveFromCart = (id) => {
-    setCartItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const handleClearCart = () => {
@@ -198,21 +130,37 @@ function App() {
       confirmLabel: 'すべて削除',
       danger: true,
       onConfirm: () => {
-        setCartItems([]);
+        clearCart();
         setConfirmDialog(null);
         showToast('カートを空にしました', 'info');
       },
     });
   };
 
+  const handleClearCompare = () => {
+    setConfirmDialog({
+      title: '比較表をすべてクリア',
+      message: '比較表の商品をすべて削除しますか？',
+      confirmLabel: 'すべて削除',
+      danger: true,
+      onConfirm: () => {
+        clearCompare();
+        setConfirmDialog(null);
+        showToast('比較表を空にしました', 'info');
+      },
+    });
+  };
+
   const handleLoadSample = () => {
-    const samples = createSampleCartItems();
-    setCartItems(samples);
-    if (!budget) {
-      setBudget(35000);
-    }
+    loadSampleCart();
     setActiveTab('cart');
     showToast('サンプル商品を読み込みました', 'info');
+  };
+
+  const handleLoadCompareSample = () => {
+    loadSampleCompare();
+    setActiveTab('compare');
+    showToast('比較サンプル商品を読み込みました', 'info');
   };
 
   const sharePayload = async (itemsToShare, budgetToShare) => {
@@ -238,16 +186,7 @@ function App() {
   const handleShareSavedCart = (cart) => sharePayload(cart.items, cart.budget ?? null);
 
   const handleSaveCart = (name, items, total) => {
-    const newSavedCart = {
-      id: uuidv4(),
-      name,
-      items: [...items],
-      total,
-      budget: budget && budget > 0 ? budget : null,
-      savedAt: Date.now(),
-    };
-
-    setSavedCarts((prev) => [newSavedCart, ...prev]);
+    saveCurrentCart(name, items, total);
     showToast(`「${name}」を保存しました`, 'success');
     setActiveTab('saved');
   };
@@ -259,26 +198,11 @@ function App() {
       confirmLabel: '削除する',
       danger: true,
       onConfirm: () => {
-        setSavedCarts((prev) => prev.filter((cart) => cart.id !== id));
+        removeSavedCart(id);
         setConfirmDialog(null);
         showToast('保存済みカートを削除しました', 'info');
       },
     });
-  };
-
-  const applyRestoreCart = (cart) => {
-    const restoredItems = cart.items.map((item) => ({
-      ...item,
-      id: uuidv4(),
-      addedAt: Date.now(),
-    }));
-
-    setCartItems(restoredItems);
-    if (cart.budget && cart.budget > 0) {
-      setBudget(cart.budget);
-    }
-    showToast(`「${cart.name}」をカートに復元しました`, 'success');
-    setActiveTab('cart');
   };
 
   const handleRestoreCart = (cart) => {
@@ -289,13 +213,17 @@ function App() {
         confirmLabel: '上書きして復元',
         danger: false,
         onConfirm: () => {
-          applyRestoreCart(cart);
+          restoreSavedCart(cart);
           setConfirmDialog(null);
+          showToast(`「${cart.name}」をカートに復元しました`, 'success');
+          setActiveTab('cart');
         },
       });
       return;
     }
-    applyRestoreCart(cart);
+    restoreSavedCart(cart);
+    showToast(`「${cart.name}」をカートに復元しました`, 'success');
+    setActiveTab('cart');
   };
 
   return (
@@ -329,6 +257,7 @@ function App() {
           <button
             type="button"
             className="glass-panel mobile-add-toggle"
+            aria-expanded={mobileFormOpen}
             onClick={() => setMobileFormOpen((prev) => !prev)}
           >
             <span className="mobile-add-toggle-label">
@@ -398,8 +327,8 @@ function App() {
                 items={cartItems}
                 budget={budget}
                 onUpdateBudget={setBudget}
-                onUpdateItem={handleUpdateItem}
-                onRemove={handleRemoveFromCart}
+                onUpdateItem={updateCartItem}
+                onRemove={removeCartItem}
                 onAddToCompare={handleCopyCartItemToCompare}
                 onSaveCart={handleSaveCart}
                 onLoadSample={handleLoadSample}
@@ -410,7 +339,7 @@ function App() {
           ) : activeTab === 'compare' ? (
             <CompareList
               items={compareItems}
-              onRemove={handleRemoveFromCompare}
+              onRemove={removeCompareItem}
               onClear={handleClearCompare}
               onAddToCart={handleSendCompareItemToCart}
               onLoadSample={handleLoadCompareSample}

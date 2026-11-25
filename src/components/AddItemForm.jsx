@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, Link2, Loader2, Info, PenLine } from 'lucide-react';
-import { parseUrl, fetchUrlInfo } from '../utils/urlParser';
+import { parseUrl, fetchUrlInfo, sanitizeHttpUrl } from '../utils/urlParser';
 import { v4 as uuidv4 } from 'uuid';
 import './AddItemForm.css';
 
@@ -15,7 +15,7 @@ const AddItemForm = ({ onAdd, onAddToCompare, defaultTarget = 'cart', onNotify }
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
-  const [fetchFallbackNotice, setFetchFallbackNotice] = useState(false);
+  const [fetchNoticeMessage, setFetchNoticeMessage] = useState('');
 
   // フォームのステート
   const [title, setTitle] = useState('');
@@ -28,27 +28,36 @@ const AddItemForm = ({ onAdd, onAddToCompare, defaultTarget = 'cart', onNotify }
 
   const handleUrlSubmit = async (e) => {
     e.preventDefault();
-    if (!url) return;
+    const safeUrl = sanitizeHttpUrl(url);
+    if (!safeUrl) {
+      onNotify?.('http:// または https:// で始まる有効なURLを入力してください。', 'error');
+      return;
+    }
 
+    setUrl(safeUrl);
     setIsLoading(true);
-    setFetchFallbackNotice(false);
+    setFetchNoticeMessage('');
 
-    const parsedSiteInfo = parseUrl(url);
+    const parsedSiteInfo = parseUrl(safeUrl);
     setSiteInfo(parsedSiteInfo);
 
-    const urlInfo = await fetchUrlInfo(url);
+    const result = await fetchUrlInfo(safeUrl);
 
-    if (urlInfo && (urlInfo.title || urlInfo.image)) {
-      setTitle(urlInfo.title || '');
-      setImageUrl(urlInfo.image || '');
-      if (urlInfo.price) {
-        setPrice(urlInfo.price);
+    if (result.data && (result.data.title || result.data.image)) {
+      setTitle(result.data.title || '');
+      setImageUrl(result.data.image || '');
+      if (result.data.price) {
+        setPrice(result.data.price);
       }
-      if (!urlInfo.title) {
-        setFetchFallbackNotice(true);
+      if (!result.data.title) {
+        setFetchNoticeMessage('商品名を自動取得できなかったため、手動で入力してください。');
       }
+    } else if (result.reason === 'timeout') {
+      setFetchNoticeMessage('情報取得がタイムアウトしました。手動で入力して追加できます。');
+    } else if (result.reason === 'http_error' || result.reason === 'network_error') {
+      setFetchNoticeMessage('外部サービスからの情報取得に失敗しました。手動で入力して追加できます。');
     } else {
-      setFetchFallbackNotice(true);
+      setFetchNoticeMessage('自動取得できなかった項目は手動で入力・編集できます。');
     }
 
     setIsLoading(false);
@@ -58,7 +67,7 @@ const AddItemForm = ({ onAdd, onAddToCompare, defaultTarget = 'cart', onNotify }
   const handleOpenManualOnly = () => {
     setUrl('');
     setSiteInfo(DEFAULT_MANUAL_SITE);
-    setFetchFallbackNotice(false);
+    setFetchNoticeMessage('');
     setShowManualForm(true);
   };
 
@@ -71,7 +80,7 @@ const AddItemForm = ({ onAdd, onAddToCompare, defaultTarget = 'cart', onNotify }
     setPoints('0');
     setImageUrl('');
     setSiteInfo(null);
-    setFetchFallbackNotice(false);
+    setFetchNoticeMessage('');
     setShowManualForm(false);
   };
 
@@ -142,7 +151,7 @@ const AddItemForm = ({ onAdd, onAddToCompare, defaultTarget = 'cart', onNotify }
             </button>
           </div>
           <p className="form-subnote">
-            ※ Amazon・楽天などは仕様上自動取得できない場合がありますが、次の画面で手動入力・編集できます。
+            ※ 入力されたURL（http/httpsのみ）は、タイトル・画像取得のため外部サービス（Microlink）に送信されます。Amazon・楽天などは仕様上取得できない場合がありますが、次の画面で手動入力できます。
           </p>
           <button
             type="button"
@@ -158,10 +167,10 @@ const AddItemForm = ({ onAdd, onAddToCompare, defaultTarget = 'cart', onNotify }
             {siteInfo?.siteName}
           </div>
 
-          {fetchFallbackNotice && (
+          {fetchNoticeMessage && (
             <div className="fetch-notice">
               <Info size={15} />
-              <span>自動取得できなかった項目は手動で入力・編集できます。</span>
+              <span>{fetchNoticeMessage}</span>
             </div>
           )}
 

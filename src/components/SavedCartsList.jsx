@@ -33,7 +33,13 @@ const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart, onShareSavedC
 
           return (
             <div key={cart.id} className="glass-panel saved-cart-card">
-              <div className="saved-cart-header" onClick={() => toggleExpand(cart.id)}>
+              <button
+                type="button"
+                className="saved-cart-header"
+                onClick={() => toggleExpand(cart.id)}
+                aria-expanded={isExpanded}
+                aria-controls={`saved-cart-details-${cart.id}`}
+              >
                 <div className="saved-cart-info">
                   <h3 className="saved-cart-name">{cart.name}</h3>
                   <div className="saved-cart-meta">
@@ -53,13 +59,13 @@ const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart, onShareSavedC
                 <div className="saved-cart-total">
                   {formatJPY(cart.total)}
                 </div>
-                <button className="btn-icon" aria-label="詳細を開閉">
+                <span className="btn-icon saved-cart-chevron" aria-hidden="true">
                   {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </button>
-              </div>
+                </span>
+              </button>
 
               {isExpanded && (
-                <div className="saved-cart-details fade-in">
+                <div id={`saved-cart-details-${cart.id}`} className="saved-cart-details fade-in">
                   <div className="saved-cart-items-preview">
                     {cart.items.map((item, idx) => (
                       <div key={idx} className="preview-item">

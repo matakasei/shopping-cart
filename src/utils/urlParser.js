@@ -1,91 +1,154 @@
 /**
- * URLからサイトの情報を解析するユーティリティ
+ * URLからサイトの情報を解析・サニタイズするユーティリティ
  */
 
-// サポートするサイトの定義
+export const MAX_URL_LENGTH = 2048;
+
 const SITE_DEFINITIONS = [
   {
     name: 'Amazon',
     domains: ['amazon.co.jp', 'amazon.com', 'amzn.to'],
     color: 'var(--color-amazon)',
-    logoText: 'Amazon'
+    logoText: 'Amazon',
   },
   {
     name: '楽天',
-    domains: ['rakuten.co.jp', 'item.rakuten.co.jp'],
+    domains: ['rakuten.co.jp'],
     color: 'var(--color-rakuten)',
-    logoText: 'Rakuten'
+    logoText: 'Rakuten',
   },
   {
     name: 'Yahoo!ショッピング',
-    domains: ['shopping.yahoo.co.jp', 'store.shopping.yahoo.co.jp'],
+    domains: ['shopping.yahoo.co.jp', 'paypaymall.yahoo.co.jp'],
     color: 'var(--color-yahoo)',
-    logoText: 'Yahoo!'
-  }
+    logoText: 'Yahoo!',
+  },
 ];
 
-export const parseUrl = (urlStr) => {
+/**
+ * http / https の安全なURLのみ許可し、それ以外は空文字を返す
+ */
+export const sanitizeHttpUrl = (urlStr) => {
+  if (typeof urlStr !== 'string') return '';
+  const trimmed = urlStr.trim();
+  if (!trimmed || trimmed.length > MAX_URL_LENGTH) return '';
+
   try {
-    const url = new URL(urlStr);
-    const domain = url.hostname.replace(/^www\./, '');
-    
-    // サイト定義から検索
-    const site = SITE_DEFINITIONS.find(s => s.domains.some(d => domain.includes(d)));
-    
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+    return parsed.href;
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * ホスト名が定義済みドメインと完全一致または正規のサブドメインかを判定する
+ */
+export const isDomainMatch = (hostname, domain) => {
+  const host = hostname.toLowerCase();
+  const target = domain.toLowerCase();
+  return host === target || host.endsWith(`.${target}`);
+};
+
+export const parseUrl = (urlStr) => {
+  const safeUrl = sanitizeHttpUrl(urlStr);
+  if (!safeUrl) {
+    return {
+      siteName: '手動入力',
+      color: 'var(--color-other)',
+      logoText: 'MEMO',
+      domain: '',
+    };
+  }
+
+  try {
+    const url = new URL(safeUrl);
+    const domain = url.hostname.replace(/^www\./, '').toLowerCase();
+
+    const site = SITE_DEFINITIONS.find((s) =>
+      s.domains.some((d) => isDomainMatch(domain, d))
+    );
+
     if (site) {
       return {
         siteName: site.name,
         color: site.color,
         logoText: site.logoText,
-        domain
+        domain,
       };
     }
-    
-    // 未知のサイトの場合
+
     return {
       siteName: domain,
       color: 'var(--color-other)',
       logoText: 'WEB',
-      domain
+      domain,
     };
   } catch {
-    // URLが無効な場合
     return {
       siteName: 'Unknown',
       color: 'var(--color-other)',
       logoText: '?',
-      domain: ''
+      domain: '',
     };
   }
 };
 
 /**
- * 簡易的なOGP取得モック (実際はバックエンドや専用APIが必要)
- * 今回はフリーAPI (例: microlink API) を使ってタイトルと画像を取得してみる
+ * Microlink APIを利用してタイトルと画像を取得する（タイムアウト・HTTPエラー対応）
  */
-export const fetchUrlInfo = async (urlStr) => {
-  try {
-    // 1. Microlink APIを利用してタイトルや画像などのメタデータを取得
-    const apiUrl = `https://api.microlink.io/?url=${encodeURIComponent(urlStr)}`;
-    const response = await fetch(apiUrl);
-    const data = await response.json();
-    
-    let result = {
-      title: '',
-      image: '',
-      description: '',
-      price: ''
-    };
+export const fetchUrlInfo = async (urlStr, { timeoutMs = 6000, fetchImpl = fetch } = {}) => {
+  const safeUrl = sanitizeHttpUrl(urlStr);
+  if (!safeUrl) {
+    return { ok: false, reason: 'invalid_url', data: null };
+  }
 
-    if (data.status === 'success') {
-      result.title = data.data.title || '';
-      result.image = data.data.image?.url || data.data.logo?.url || '';
-      result.description = data.data.description || '';
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const apiUrl = `https://api.microlink.io/?url=${encodeURIComponent(safeUrl)}`;
+    const response = await fetchImpl(apiUrl, { signal: controller.signal });
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        reason: 'http_error',
+        status: response.status,
+        data: null,
+      };
     }
 
-    return result;
+    const payload = await response.json();
+    const rawData = payload?.status === 'success' ? payload.data : null;
+
+    if (!rawData) {
+      return { ok: false, reason: 'empty', data: null };
+    }
+
+    const title = typeof rawData.title === 'string' ? rawData.title.trim() : '';
+    const image = sanitizeHttpUrl(rawData.image?.url || rawData.logo?.url || '');
+    const description = typeof rawData.description === 'string' ? rawData.description.trim() : '';
+
+    return {
+      ok: Boolean(title || image),
+      reason: title || image ? 'ok' : 'empty',
+      data: {
+        title,
+        image,
+        description,
+        price: '',
+      },
+    };
   } catch (error) {
-    console.error("Failed to fetch URL info:", error);
-    return null;
+    if (error?.name === 'AbortError') {
+      return { ok: false, reason: 'timeout', data: null };
+    }
+    return { ok: false, reason: 'network_error', data: null };
+  } finally {
+    clearTimeout(timerId);
   }
 };

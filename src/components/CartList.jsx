@@ -18,6 +18,7 @@ const CartList = ({
   onUpdateBudget,
   onUpdateItem,
   onRemove,
+  onAddToCompare,
   onSaveCart,
   onLoadSample,
   onShareCart,
@@ -180,6 +181,7 @@ const CartList = ({
             item={item}
             onUpdateItem={onUpdateItem}
             onRemove={onRemove}
+            onAddToCompare={onAddToCompare}
           />
         ))}
       </div>

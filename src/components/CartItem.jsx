@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { ExternalLink, Trash2, BookmarkPlus, Minus, Plus, Edit2, Check, Truck, Coins } from 'lucide-react';
+import { ExternalLink, Trash2, SplitSquareHorizontal, Minus, Plus, Edit2, Check, Truck, Coins } from 'lucide-react';
 import { formatJPY, getItemBreakdown } from '../utils/cartUtils';
 import './CartItem.css';
 
-const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) => {
+const CartItem = ({ item, onUpdateItem, onRemove, onAddToCompare, isBookmarkView }) => {
   const { title, imageUrl, url, siteInfo } = item;
   const isIncluded = item.included !== false;
   const breakdown = getItemBreakdown(item);
@@ -257,13 +257,13 @@ const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) 
           )}
 
           <div className="action-buttons">
-            {!isBookmarkView && onBookmark && (
+            {!isBookmarkView && onAddToCompare && (
               <button
                 className="btn-icon"
-                onClick={() => onBookmark(item)}
-                title="ブックマークに保存"
+                onClick={() => onAddToCompare(item)}
+                title="比較表にコピー"
               >
-                <BookmarkPlus size={18} />
+                <SplitSquareHorizontal size={18} />
               </button>
             )}
             <button

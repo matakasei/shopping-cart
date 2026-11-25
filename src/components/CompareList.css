@@ -227,9 +227,7 @@
   background: rgba(59, 130, 246, 0.08);
 }
 
-.compare-all-paused {
-  padding: 2rem 1rem;
-  text-align: center;
-  font-size: 0.9rem;
-  color: var(--color-text-muted);
+.compare-clear-btn {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.82rem;
 }

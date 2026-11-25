@@ -8,11 +8,12 @@ import ToastContainer from './components/ToastContainer';
 import ConfirmDialog from './components/ConfirmDialog';
 import { ShoppingCart, Archive, SplitSquareHorizontal, Share2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { createSampleCartItems } from './utils/cartUtils';
+import { createSampleCartItems, createSampleCompareItems } from './utils/cartUtils';
 import { encodeShareData, decodeShareData } from './utils/shareUtils';
 
 const STORAGE_KEYS = {
   items: 'multi-cart-items',
+  compare: 'multi-cart-compare-items',
   saved: 'multi-cart-saved-lists',
   budget: 'multi-cart-budget',
 };
@@ -30,6 +31,7 @@ const safeReadStorage = (key, fallback) => {
 
 function App() {
   const [cartItems, setCartItems] = useState(() => safeReadStorage(STORAGE_KEYS.items, []));
+  const [compareItems, setCompareItems] = useState(() => safeReadStorage(STORAGE_KEYS.compare, []));
   const [savedCarts, setSavedCarts] = useState(() => safeReadStorage(STORAGE_KEYS.saved, []));
 
   const [budget, setBudget] = useState(() => {
@@ -64,6 +66,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(cartItems));
   }, [cartItems]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.compare, JSON.stringify(compareItems));
+  }, [compareItems]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.saved, JSON.stringify(savedCarts));
@@ -121,6 +127,58 @@ function App() {
     setCartItems((prev) => [item, ...prev]);
     setActiveTab('cart');
     showToast(`「${item.title}」をカートに追加しました`, 'success');
+  };
+
+  const handleAddToCompare = (item) => {
+    setCompareItems((prev) => [item, ...prev]);
+    setActiveTab('compare');
+    showToast(`「${item.title}」を比較表に追加しました`, 'success');
+  };
+
+  const handleCopyCartItemToCompare = (item) => {
+    const copied = {
+      ...item,
+      id: uuidv4(),
+      included: true,
+      addedAt: Date.now(),
+    };
+    setCompareItems((prev) => [copied, ...prev]);
+    showToast(`「${item.title}」を比較表にコピーしました`, 'info');
+  };
+
+  const handleSendCompareItemToCart = (item) => {
+    const copied = {
+      ...item,
+      id: uuidv4(),
+      included: true,
+      addedAt: Date.now(),
+    };
+    setCartItems((prev) => [copied, ...prev]);
+    showToast(`「${item.title}」をカートに追加しました`, 'success');
+  };
+
+  const handleRemoveFromCompare = (id) => {
+    setCompareItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleClearCompare = () => {
+    setConfirmDialog({
+      title: '比較表をすべてクリア',
+      message: '比較表の商品をすべて削除しますか？',
+      confirmLabel: 'すべて削除',
+      danger: true,
+      onConfirm: () => {
+        setCompareItems([]);
+        setConfirmDialog(null);
+        showToast('比較表を空にしました', 'info');
+      },
+    });
+  };
+
+  const handleLoadCompareSample = () => {
+    setCompareItems(createSampleCompareItems());
+    setActiveTab('compare');
+    showToast('比較サンプル商品を読み込みました', 'info');
   };
 
   const handleUpdateItem = (id, patch) => {
@@ -274,13 +332,18 @@ function App() {
             onClick={() => setMobileFormOpen((prev) => !prev)}
           >
             <span className="mobile-add-toggle-label">
-              <Plus size={18} /> 商品をカートに追加
+              <Plus size={18} /> 商品を追加
             </span>
             {mobileFormOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
 
           <div className={`sidebar-form-wrapper ${mobileFormOpen ? 'is-open' : ''}`}>
-            <AddItemForm onAdd={handleAddToCart} onNotify={showToast} />
+            <AddItemForm
+              onAdd={handleAddToCart}
+              onAddToCompare={handleAddToCompare}
+              defaultTarget={activeTab === 'compare' ? 'compare' : 'cart'}
+              onNotify={showToast}
+            />
           </div>
         </div>
 
@@ -306,7 +369,7 @@ function App() {
                 color: activeTab !== 'compare' ? 'var(--color-text-muted)' : undefined,
               }}
             >
-              <SplitSquareHorizontal size={18} /> 比較表
+              <SplitSquareHorizontal size={18} /> 比較表 ({compareItems.length})
             </button>
             <button
               className={`btn ${activeTab === 'saved' ? 'btn-primary' : ''}`}
@@ -337,6 +400,7 @@ function App() {
                 onUpdateBudget={setBudget}
                 onUpdateItem={handleUpdateItem}
                 onRemove={handleRemoveFromCart}
+                onAddToCompare={handleCopyCartItemToCompare}
                 onSaveCart={handleSaveCart}
                 onLoadSample={handleLoadSample}
                 onShareCart={handleShareCart}
@@ -344,7 +408,13 @@ function App() {
               />
             </>
           ) : activeTab === 'compare' ? (
-            <CompareList items={cartItems} onRemove={handleRemoveFromCart} />
+            <CompareList
+              items={compareItems}
+              onRemove={handleRemoveFromCompare}
+              onClear={handleClearCompare}
+              onAddToCart={handleSendCompareItemToCart}
+              onLoadSample={handleLoadCompareSample}
+            />
           ) : (
             <SavedCartsList
               savedCarts={savedCarts}

@@ -11,7 +11,7 @@ const DEFAULT_MANUAL_SITE = {
   domain: '',
 };
 
-const AddItemForm = ({ onAdd, onNotify }) => {
+const AddItemForm = ({ onAdd, onAddToCompare, defaultTarget = 'cart', onNotify }) => {
   const [url, setUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(false);
@@ -75,15 +75,13 @@ const AddItemForm = ({ onAdd, onNotify }) => {
     setShowManualForm(false);
   };
 
-  const handleFinalSubmit = (e) => {
-    e.preventDefault();
-
+  const buildItem = () => {
     if (!title.trim() || price === '') {
       onNotify?.('商品名と価格を入力してください', 'error');
-      return;
+      return null;
     }
 
-    const newItem = {
+    return {
       id: uuidv4(),
       url: url.trim(),
       title: title.trim(),
@@ -95,16 +93,30 @@ const AddItemForm = ({ onAdd, onNotify }) => {
       siteInfo: siteInfo || (url.trim() ? parseUrl(url.trim()) : DEFAULT_MANUAL_SITE),
       addedAt: Date.now(),
     };
+  };
 
-    onAdd(newItem);
+  const handleSubmitTo = (target) => {
+    const newItem = buildItem();
+    if (!newItem) return;
+
+    if (target === 'compare' && onAddToCompare) {
+      onAddToCompare(newItem);
+    } else {
+      onAdd(newItem);
+    }
     resetForm();
+  };
+
+  const handleFinalSubmit = (e) => {
+    e.preventDefault();
+    handleSubmitTo(defaultTarget);
   };
 
   return (
     <div className="glass-panel form-container">
       <h2 className="section-title">
         <Plus size={20} />
-        商品をカートに追加
+        商品を追加
       </h2>
 
       {!showManualForm ? (
@@ -234,7 +246,20 @@ const AddItemForm = ({ onAdd, onNotify }) => {
             <button type="button" className="btn" onClick={() => setShowManualForm(false)}>
               戻る
             </button>
-            <button type="submit" className="btn btn-primary">
+            {onAddToCompare && (
+              <button
+                type="button"
+                className={`btn ${defaultTarget === 'compare' ? 'btn-primary' : ''}`}
+                onClick={() => handleSubmitTo('compare')}
+              >
+                比較表に追加
+              </button>
+            )}
+            <button
+              type={defaultTarget === 'cart' ? 'submit' : 'button'}
+              className={`btn ${defaultTarget === 'cart' ? 'btn-primary' : ''}`}
+              onClick={defaultTarget === 'cart' ? undefined : () => handleSubmitTo('cart')}
+            >
               カートに追加
             </button>
           </div>

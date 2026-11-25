@@ -141,3 +141,46 @@ export const createSampleCartItems = () => {
     addedAt: now - index * 1000,
   }));
 };
+
+/**
+ * 比較表用のサンプルデータ（同一商品のショップ別比較）を生成する
+ */
+export const createSampleCompareItems = () => {
+  const now = Date.now();
+  const samples = [
+    {
+      url: 'https://www.amazon.co.jp/dp/B0COMP01',
+      title: 'ロジクール MX MASTER 3S（Amazon公式）',
+      price: 14800,
+      quantity: 1,
+      shipping: 0,
+      points: 148,
+      imageUrl: '',
+    },
+    {
+      url: 'https://item.rakuten.co.jp/sample-shop/mx-master-3s/',
+      title: 'ロジクール MX MASTER 3S（楽天市場店）',
+      price: 15200,
+      quantity: 1,
+      shipping: 0,
+      points: 1520,
+      imageUrl: '',
+    },
+    {
+      url: 'https://store.shopping.yahoo.co.jp/sample/mx-master-3s.html',
+      title: 'ロジクール MX MASTER 3S（Yahoo!店）',
+      price: 14500,
+      quantity: 1,
+      shipping: 550,
+      points: 725,
+      imageUrl: '',
+    },
+  ];
+
+  return samples.map((s, index) => ({
+    id: uuidv4(),
+    ...s,
+    siteInfo: parseUrl(s.url),
+    addedAt: now - index * 1000,
+  }));
+};

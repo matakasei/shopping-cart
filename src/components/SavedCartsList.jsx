@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Archive, Trash2, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import './SavedCartsList.css';
 

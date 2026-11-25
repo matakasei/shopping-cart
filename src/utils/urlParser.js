@@ -48,7 +48,7 @@ export const parseUrl = (urlStr) => {
       logoText: 'WEB',
       domain
     };
-  } catch (e) {
+  } catch {
     // URLが無効な場合
     return {
       siteName: 'Unknown',

@@ -5,11 +5,64 @@
 
 .form-help {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.5rem;
   font-size: 0.875rem;
   color: var(--color-text-muted);
   margin-bottom: 1rem;
+}
+
+.form-help-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.form-subnote {
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.btn-text-link {
+  margin-top: 0.75rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.btn-text-link:hover {
+  text-decoration: underline;
+}
+
+.fetch-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: var(--color-primary-hover);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+
+.form-row-3 .input-field {
+  padding: 0.6rem 0.65rem;
 }
 
 .input-group {

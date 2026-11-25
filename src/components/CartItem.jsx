@@ -1,31 +1,41 @@
-import React, { useState } from 'react';
-import { ExternalLink, Trash2, BookmarkPlus, Minus, Plus, Edit2, Check } from 'lucide-react';
+import { useState } from 'react';
+import { ExternalLink, Trash2, BookmarkPlus, Minus, Plus, Edit2, Check, Truck, Coins } from 'lucide-react';
+import { formatJPY, getItemBreakdown } from '../utils/cartUtils';
 import './CartItem.css';
 
-const CartItem = ({ item, onUpdateQuantity, onUpdatePrice, onRemove, onBookmark, isBookmarkView }) => {
-  const { title, price, imageUrl, url, siteInfo, quantity } = item;
-  
-  const [isEditingPrice, setIsEditingPrice] = useState(false);
-  const [editPriceValue, setEditPriceValue] = useState(price);
+const CartItem = ({ item, onUpdateItem, onRemove, onBookmark, isBookmarkView }) => {
+  const { title, imageUrl, url, siteInfo } = item;
+  const breakdown = getItemBreakdown(item);
+  const { price, quantity, shipping, points, effectiveTotal } = breakdown;
 
-  const handlePriceSubmit = () => {
-    if (onUpdatePrice && !isNaN(editPriceValue) && editPriceValue >= 0) {
-      onUpdatePrice(item.id, editPriceValue);
-    }
-    setIsEditingPrice(false);
+  const [editingField, setEditingField] = useState(null); // 'price' | 'shipping' | 'points' | null
+  const [editValue, setEditValue] = useState('');
+
+  const startEditing = (field, currentVal) => {
+    if (isBookmarkView || !onUpdateItem) return;
+    setEditingField(field);
+    setEditValue(String(currentVal));
   };
 
-  const handlePriceKeyDown = (e) => {
+  const commitEdit = () => {
+    if (!editingField || !onUpdateItem) return;
+    const numeric = parseInt(editValue, 10);
+    if (!Number.isNaN(numeric) && numeric >= 0) {
+      onUpdateItem(item.id, { [editingField]: numeric });
+    }
+    setEditingField(null);
+  };
+
+  const handleEditKeyDown = (e) => {
     if (e.key === 'Enter') {
-      handlePriceSubmit();
+      commitEdit();
     } else if (e.key === 'Escape') {
-      setEditPriceValue(price);
-      setIsEditingPrice(false);
+      setEditingField(null);
     }
   };
 
-  const formattedPrice = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(price);
-  
+  const showEffectiveSubtotal = quantity > 1 || shipping > 0 || points > 0;
+
   return (
     <div className="glass-panel cart-item">
       <div className="cart-item-image">
@@ -35,81 +45,172 @@ const CartItem = ({ item, onUpdateQuantity, onUpdatePrice, onRemove, onBookmark,
           <div className="no-image">{siteInfo.logoText}</div>
         )}
       </div>
-      
+
       <div className="cart-item-content">
         <div className="cart-item-header">
           <span className="site-badge" style={{ backgroundColor: siteInfo.color }}>
             {siteInfo.siteName}
           </span>
-          <a href={url} target="_blank" rel="noopener noreferrer" className="external-link">
-            商品ページ <ExternalLink size={14} />
-          </a>
+          {url && (
+            <a href={url} target="_blank" rel="noopener noreferrer" className="external-link">
+              商品ページ <ExternalLink size={14} />
+            </a>
+          )}
         </div>
-        
+
         <h3 className="cart-item-title" title={title}>{title}</h3>
-        
+
         <div className="cart-item-price-container">
-          {isEditingPrice ? (
+          {editingField === 'price' ? (
             <div className="price-edit-mode">
               <span className="currency-symbol">¥</span>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 className="price-input"
-                value={editPriceValue}
-                onChange={(e) => setEditPriceValue(e.target.value)}
-                onKeyDown={handlePriceKeyDown}
-                onBlur={handlePriceSubmit}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                onBlur={commitEdit}
                 autoFocus
                 min="0"
               />
-              <button className="btn-icon small success" onMouseDown={(e) => e.preventDefault()} onClick={handlePriceSubmit}>
+              <button
+                className="btn-icon small success"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={commitEdit}
+                aria-label="価格を確定"
+              >
                 <Check size={14} />
               </button>
             </div>
           ) : (
-            <div className="cart-item-price">
-              {formattedPrice}
-              {!isBookmarkView && onUpdatePrice && (
-                <button className="btn-icon tiny edit-price-btn" onClick={() => setIsEditingPrice(true)} title="価格を編集">
-                  <Edit2 size={12} />
-                </button>
+            <div className="cart-item-price-row">
+              <div className="cart-item-price">
+                {formatJPY(price)}
+                {!isBookmarkView && onUpdateItem && (
+                  <button
+                    className="btn-icon tiny edit-price-btn"
+                    onClick={() => startEditing('price', price)}
+                    title="本体価格を編集"
+                  >
+                    <Edit2 size={12} />
+                  </button>
+                )}
+              </div>
+              {showEffectiveSubtotal && (
+                <div className="effective-subtotal">
+                  実質小計: <strong>{formatJPY(effectiveTotal)}</strong>
+                </div>
               )}
             </div>
           )}
         </div>
-        
+
+        <div className="cart-item-modifiers">
+          {editingField === 'shipping' ? (
+            <div className="modifier-edit-chip">
+              <Truck size={12} />
+              <span>送料 ¥</span>
+              <input
+                type="number"
+                className="modifier-input"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                onBlur={commitEdit}
+                autoFocus
+                min="0"
+              />
+              <button
+                className="btn-icon tiny success"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={commitEdit}
+                aria-label="送料を確定"
+              >
+                <Check size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={`modifier-chip ${shipping > 0 ? 'has-shipping' : ''}`}
+              onClick={() => startEditing('shipping', shipping)}
+              title="クリックして送料を編集"
+            >
+              <Truck size={12} />
+              <span>{shipping > 0 ? `送料 +${formatJPY(shipping)}` : '送料無料'}</span>
+            </button>
+          )}
+
+          {editingField === 'points' ? (
+            <div className="modifier-edit-chip">
+              <Coins size={12} />
+              <span>還元</span>
+              <input
+                type="number"
+                className="modifier-input"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={handleEditKeyDown}
+                onBlur={commitEdit}
+                autoFocus
+                min="0"
+              />
+              <span>pt</span>
+              <button
+                className="btn-icon tiny success"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={commitEdit}
+                aria-label="ポイントを確定"
+              >
+                <Check size={12} />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              className={`modifier-chip ${points > 0 ? 'has-points' : ''}`}
+              onClick={() => startEditing('points', points)}
+              title="クリックしてポイント還元を編集"
+            >
+              <Coins size={12} />
+              <span>{points > 0 ? `-${points.toLocaleString()}pt` : 'ポイント 0pt'}</span>
+            </button>
+          )}
+        </div>
+
         <div className="cart-item-actions">
           {!isBookmarkView && (
             <div className="quantity-control">
-              <button 
-                className="btn-icon small" 
-                onClick={() => onUpdateQuantity(item.id, Math.max(1, quantity - 1))}
+              <button
+                className="btn-icon small"
+                onClick={() => onUpdateItem(item.id, { quantity: Math.max(1, quantity - 1) })}
                 disabled={quantity <= 1}
               >
                 <Minus size={14} />
               </button>
               <span className="quantity">{quantity}</span>
-              <button 
-                className="btn-icon small" 
-                onClick={() => onUpdateQuantity(item.id, quantity + 1)}
+              <button
+                className="btn-icon small"
+                onClick={() => onUpdateItem(item.id, { quantity: quantity + 1 })}
               >
                 <Plus size={14} />
               </button>
             </div>
           )}
-          
+
           <div className="action-buttons">
             {!isBookmarkView && onBookmark && (
-              <button 
-                className="btn-icon" 
+              <button
+                className="btn-icon"
                 onClick={() => onBookmark(item)}
                 title="ブックマークに保存"
               >
                 <BookmarkPlus size={18} />
               </button>
             )}
-            <button 
-              className="btn-icon danger" 
+            <button
+              className="btn-icon danger"
               onClick={() => onRemove(item.id)}
               title="削除"
             >

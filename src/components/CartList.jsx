@@ -1,9 +1,16 @@
-import { useState } from 'react';
-import { ShoppingCart, Calculator, Save, Share2, Check, Sparkles } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { ShoppingCart, Calculator, Save, Share2, Check, Sparkles, ArrowUpDown } from 'lucide-react';
 import CartItem from './CartItem';
 import BudgetBar from './BudgetBar';
-import { formatJPY, getCartSummary } from '../utils/cartUtils';
+import { formatJPY, getCartSummary, getItemBreakdown } from '../utils/cartUtils';
 import './CartList.css';
+
+const SORT_OPTIONS = [
+  { value: 'added', label: '追加順' },
+  { value: 'effective-asc', label: '実質価格が安い順' },
+  { value: 'effective-desc', label: '実質価格が高い順' },
+  { value: 'site', label: 'サイト別' },
+];
 
 const CartList = ({
   items,
@@ -19,9 +26,42 @@ const CartList = ({
   const [cartName, setCartName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [sortBy, setSortBy] = useState('added');
+  const [siteFilter, setSiteFilter] = useState('all');
 
   const summary = getCartSummary(items);
   const pausedCount = items.length - summary.includedCount;
+
+  const availableSites = useMemo(() => {
+    const names = new Set(items.map((item) => item.siteInfo?.siteName || 'その他'));
+    return Array.from(names);
+  }, [items]);
+
+  const activeSiteFilter = availableSites.includes(siteFilter) ? siteFilter : 'all';
+
+  const displayedItems = useMemo(() => {
+    const filtered =
+      activeSiteFilter === 'all'
+        ? items
+        : items.filter((item) => (item.siteInfo?.siteName || 'その他') === activeSiteFilter);
+
+    if (sortBy === 'added') return filtered;
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'effective-asc') {
+        return getItemBreakdown(a).effectiveTotal - getItemBreakdown(b).effectiveTotal;
+      }
+      if (sortBy === 'effective-desc') {
+        return getItemBreakdown(b).effectiveTotal - getItemBreakdown(a).effectiveTotal;
+      }
+      if (sortBy === 'site') {
+        const siteA = a.siteInfo?.siteName || 'その他';
+        const siteB = b.siteInfo?.siteName || 'その他';
+        return siteA.localeCompare(siteB, 'ja');
+      }
+      return 0;
+    });
+  }, [items, activeSiteFilter, sortBy]);
 
   const handleSave = (e) => {
     e.preventDefault();
@@ -92,8 +132,49 @@ const CartList = ({
         </div>
       )}
 
+      {items.length > 1 && (
+        <div className="cart-toolbar">
+          {availableSites.length > 1 && (
+            <div className="cart-filter-pills">
+              <button
+                type="button"
+                className={`filter-pill ${activeSiteFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setSiteFilter('all')}
+              >
+                すべて ({items.length})
+              </button>
+              {availableSites.map((site) => (
+                <button
+                  key={site}
+                  type="button"
+                  className={`filter-pill ${activeSiteFilter === site ? 'active' : ''}`}
+                  onClick={() => setSiteFilter(site)}
+                >
+                  {site}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="cart-sort-control">
+            <ArrowUpDown size={14} />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              aria-label="並び替え"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       <div className="cart-items">
-        {items.map((item) => (
+        {displayedItems.map((item) => (
           <CartItem
             key={item.id}
             item={item}

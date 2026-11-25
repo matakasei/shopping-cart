@@ -5,7 +5,8 @@ import CartList from './components/CartList';
 import SavedCartsList from './components/SavedCartsList';
 import CompareList from './components/CompareList';
 import ToastContainer from './components/ToastContainer';
-import { ShoppingCart, Archive, SplitSquareHorizontal, Share2 } from 'lucide-react';
+import ConfirmDialog from './components/ConfirmDialog';
+import { ShoppingCart, Archive, SplitSquareHorizontal, Share2, Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { createSampleCartItems } from './utils/cartUtils';
 import { encodeShareData, decodeShareData } from './utils/shareUtils';
@@ -16,27 +17,37 @@ const STORAGE_KEYS = {
   budget: 'multi-cart-budget',
 };
 
-function App() {
-  const [cartItems, setCartItems] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.items);
-    return saved ? JSON.parse(saved) : [];
-  });
+const safeReadStorage = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(fallback) && !Array.isArray(parsed) ? fallback : parsed;
+  } catch {
+    return fallback;
+  }
+};
 
-  const [savedCarts, setSavedCarts] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.saved);
-    return saved ? JSON.parse(saved) : [];
-  });
+function App() {
+  const [cartItems, setCartItems] = useState(() => safeReadStorage(STORAGE_KEYS.items, []));
+  const [savedCarts, setSavedCarts] = useState(() => safeReadStorage(STORAGE_KEYS.saved, []));
 
   const [budget, setBudget] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.budget);
-    if (!saved) return null;
-    const parsed = Number(saved);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.budget);
+      if (!saved) return null;
+      const parsed = Number(saved);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    } catch {
+      return null;
+    }
   });
 
   const [activeTab, setActiveTab] = useState('cart');
   const [pendingShareData, setPendingShareData] = useState(null);
   const [toasts, setToasts] = useState([]);
+  const [confirmDialog, setConfirmDialog] = useState(null);
+  const [mobileFormOpen, setMobileFormOpen] = useState(() => cartItems.length === 0);
 
   const dismissToast = useCallback((id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -72,7 +83,6 @@ function App() {
     const encoded = params.get('s');
     if (!encoded) return;
 
-    // URLからクエリを削除してリロード時の再適用を防ぐ
     const cleanUrl = window.location.pathname + window.location.hash;
     window.history.replaceState({}, '', cleanUrl);
 
@@ -80,8 +90,7 @@ function App() {
       .then((decoded) => {
         if (!decoded || decoded.items.length === 0) return;
 
-        const existingSaved = localStorage.getItem(STORAGE_KEYS.items);
-        const existingItems = existingSaved ? JSON.parse(existingSaved) : [];
+        const existingItems = safeReadStorage(STORAGE_KEYS.items, []);
 
         if (existingItems.length === 0) {
           setCartItems(decoded.items);
@@ -125,9 +134,17 @@ function App() {
   };
 
   const handleClearCart = () => {
-    if (window.confirm('現在のカートの中身をすべて削除しますか？')) {
-      setCartItems([]);
-    }
+    setConfirmDialog({
+      title: 'カートをすべてクリア',
+      message: '現在のカートの中身をすべて削除しますか？この操作は取り消せません。',
+      confirmLabel: 'すべて削除',
+      danger: true,
+      onConfirm: () => {
+        setCartItems([]);
+        setConfirmDialog(null);
+        showToast('カートを空にしました', 'info');
+      },
+    });
   };
 
   const handleLoadSample = () => {
@@ -140,9 +157,9 @@ function App() {
     showToast('サンプル商品を読み込みました', 'info');
   };
 
-  const handleShareCart = async () => {
+  const sharePayload = async (itemsToShare, budgetToShare) => {
     try {
-      const encoded = await encodeShareData({ items: cartItems, budget });
+      const encoded = await encodeShareData({ items: itemsToShare, budget: budgetToShare });
       const shareUrl = `${window.location.origin}${window.location.pathname}?s=${encoded}`;
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(shareUrl);
@@ -158,12 +175,17 @@ function App() {
     }
   };
 
+  const handleShareCart = () => sharePayload(cartItems, budget);
+
+  const handleShareSavedCart = (cart) => sharePayload(cart.items, cart.budget ?? null);
+
   const handleSaveCart = (name, items, total) => {
     const newSavedCart = {
       id: uuidv4(),
       name,
       items: [...items],
       total,
+      budget: budget && budget > 0 ? budget : null,
       savedAt: Date.now(),
     };
 
@@ -173,19 +195,20 @@ function App() {
   };
 
   const handleRemoveSavedCart = (id) => {
-    if (window.confirm('この保存済みカートを削除してもよろしいですか？')) {
-      setSavedCarts((prev) => prev.filter((cart) => cart.id !== id));
-      showToast('保存済みカートを削除しました', 'info');
-    }
+    setConfirmDialog({
+      title: '保存済みカートを削除',
+      message: 'この保存済みカートを削除してもよろしいですか？',
+      confirmLabel: '削除する',
+      danger: true,
+      onConfirm: () => {
+        setSavedCarts((prev) => prev.filter((cart) => cart.id !== id));
+        setConfirmDialog(null);
+        showToast('保存済みカートを削除しました', 'info');
+      },
+    });
   };
 
-  const handleRestoreCart = (cart) => {
-    if (cartItems.length > 0) {
-      if (!window.confirm('現在のカートの中身が上書きされます。よろしいですか？（現在のカートは消去されます）')) {
-        return;
-      }
-    }
-
+  const applyRestoreCart = (cart) => {
     const restoredItems = cart.items.map((item) => ({
       ...item,
       id: uuidv4(),
@@ -193,8 +216,28 @@ function App() {
     }));
 
     setCartItems(restoredItems);
+    if (cart.budget && cart.budget > 0) {
+      setBudget(cart.budget);
+    }
     showToast(`「${cart.name}」をカートに復元しました`, 'success');
     setActiveTab('cart');
+  };
+
+  const handleRestoreCart = (cart) => {
+    if (cartItems.length > 0) {
+      setConfirmDialog({
+        title: 'カートを上書き復元',
+        message: `現在のカートの中身を消去し、「${cart.name}」の内容で上書きしますか？`,
+        confirmLabel: '上書きして復元',
+        danger: false,
+        onConfirm: () => {
+          applyRestoreCart(cart);
+          setConfirmDialog(null);
+        },
+      });
+      return;
+    }
+    applyRestoreCart(cart);
   };
 
   return (
@@ -225,7 +268,20 @@ function App() {
 
       <main className="main-grid">
         <div className="sidebar">
-          <AddItemForm onAdd={handleAddToCart} onNotify={showToast} />
+          <button
+            type="button"
+            className="glass-panel mobile-add-toggle"
+            onClick={() => setMobileFormOpen((prev) => !prev)}
+          >
+            <span className="mobile-add-toggle-label">
+              <Plus size={18} /> 商品をカートに追加
+            </span>
+            {mobileFormOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+
+          <div className={`sidebar-form-wrapper ${mobileFormOpen ? 'is-open' : ''}`}>
+            <AddItemForm onAdd={handleAddToCart} onNotify={showToast} />
+          </div>
         </div>
 
         <div className="main-content">
@@ -294,10 +350,12 @@ function App() {
               savedCarts={savedCarts}
               onRemoveCart={handleRemoveSavedCart}
               onRestoreCart={handleRestoreCart}
+              onShareSavedCart={handleShareSavedCart}
             />
           )}
         </div>
       </main>
+      <ConfirmDialog dialog={confirmDialog} onCancel={() => setConfirmDialog(null)} />
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   );

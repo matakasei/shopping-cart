@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Archive, Trash2, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
+import { Archive, Trash2, RotateCcw, ChevronDown, ChevronUp, Share2, Target } from 'lucide-react';
+import { formatJPY } from '../utils/cartUtils';
 import './SavedCartsList.css';
 
-const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart }) => {
+const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart, onShareSavedCart }) => {
   const [expandedCartId, setExpandedCartId] = useState(null);
 
   if (savedCarts.length === 0) {
@@ -15,11 +16,7 @@ const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart }) => {
   }
 
   const toggleExpand = (id) => {
-    if (expandedCartId === id) {
-      setExpandedCartId(null);
-    } else {
-      setExpandedCartId(id);
-    }
+    setExpandedCartId((prev) => (prev === id ? null : id));
   };
 
   return (
@@ -28,10 +25,9 @@ const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart }) => {
         <Archive size={20} />
         保存済みカート一覧
       </h2>
-      
+
       <div className="saved-carts-list">
-        {savedCarts.map(cart => {
-          const formattedTotal = new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(cart.total);
+        {savedCarts.map((cart) => {
           const date = new Date(cart.savedAt).toLocaleString('ja-JP');
           const isExpanded = expandedCartId === cart.id;
 
@@ -44,12 +40,20 @@ const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart }) => {
                     <span>{date}</span>
                     <span>•</span>
                     <span>商品数: {cart.items.length}点</span>
+                    {cart.budget > 0 && (
+                      <>
+                        <span>•</span>
+                        <span className="saved-cart-budget-tag">
+                          <Target size={12} /> 予算 {formatJPY(cart.budget)}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="saved-cart-total">
-                  {formattedTotal}
+                  {formatJPY(cart.total)}
                 </div>
-                <button className="btn-icon">
+                <button className="btn-icon" aria-label="詳細を開閉">
                   {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                 </button>
               </div>
@@ -59,20 +63,31 @@ const SavedCartsList = ({ savedCarts, onRemoveCart, onRestoreCart }) => {
                   <div className="saved-cart-items-preview">
                     {cart.items.map((item, idx) => (
                       <div key={idx} className="preview-item">
-                        <span className="preview-item-name">{item.title}</span>
+                        <span className="preview-item-name">
+                          {item.included === false ? '【保留】' : ''}
+                          {item.title}
+                        </span>
                         <span className="preview-item-qty">x{item.quantity}</span>
                       </div>
                     ))}
                   </div>
-                  
+
                   <div className="saved-cart-actions">
-                    <button 
+                    <button
                       className="btn btn-danger"
                       onClick={() => onRemoveCart(cart.id)}
                     >
                       <Trash2 size={16} /> 削除
                     </button>
-                    <button 
+                    {onShareSavedCart && (
+                      <button
+                        className="btn btn-share"
+                        onClick={() => onShareSavedCart(cart)}
+                      >
+                        <Share2 size={16} /> URL共有
+                      </button>
+                    )}
+                    <button
                       className="btn btn-primary"
                       onClick={() => onRestoreCart(cart)}
                     >
